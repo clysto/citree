@@ -1,5 +1,6 @@
 import click
-from citree.commands import init, add, attach, list, search, show
+
+from citree.commands import add, attach, init, list, search, show
 
 
 @click.group()

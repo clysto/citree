@@ -1,8 +1,10 @@
-import click
-from pathlib import Path
 import json
-from citree.utils import generate_entry_id, require_repo
+from pathlib import Path
+
+import click
+
 from citree.resolvers import CrossRefResolver
+from citree.utils import generate_entry_id, require_repo
 
 
 @click.command()

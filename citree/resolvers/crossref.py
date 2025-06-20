@@ -1,8 +1,11 @@
-import requests
-from .base import BaseResolver
-from citree.utils.zotero import empty_zotero_item
 import re
 import urllib.parse
+
+import requests
+
+from citree.utils.zotero import empty_zotero_item
+
+from .base import BaseResolver
 
 
 class CrossRefResolver(BaseResolver):

@@ -1,12 +1,11 @@
-import click
 import json
-
-import rich.box
-from citree.utils import require_repo
 from pathlib import Path
-import rich
-from rich.table import Table
+
+import click
 from rich.console import Console
+from rich.table import Table
+
+from citree.utils import require_repo
 
 
 @click.command(name="list")
@@ -19,10 +18,10 @@ def cli(base: Path):
         return
 
     console = Console(highlight=False)
-    table = Table(box=rich.box.SIMPLE, width=80)
+    table = Table(box=None, width=80)
 
     table.add_column("ID", style="cyan", no_wrap=True)
-    table.add_column("Title", style="white")
+    table.add_column("Title")
     table.add_column("Author", style="magenta")
     table.add_column("Date", style="green")
 

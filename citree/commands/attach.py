@@ -1,6 +1,8 @@
-import click
 import shutil
 from pathlib import Path
+
+import click
+
 from citree.utils import require_repo
 
 

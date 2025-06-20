@@ -1,7 +1,8 @@
-import nanoid
-from pathlib import Path
-import click
 import functools
+from pathlib import Path
+
+import click
+import nanoid
 
 
 def generate_entry_id() -> str:

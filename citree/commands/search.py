@@ -1,10 +1,12 @@
-import subprocess
-import click
-from pathlib import Path
-from citree.utils import require_repo
-from rich.console import Console
 import json
+import subprocess
 from collections import defaultdict
+from pathlib import Path
+
+import click
+from rich.console import Console
+
+from citree.utils import require_repo
 
 
 @click.command()

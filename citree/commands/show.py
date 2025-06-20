@@ -1,9 +1,11 @@
-import click
-from pathlib import Path
-from citree.utils import require_repo
-from rich.console import Console
 import json
+from pathlib import Path
 
+import click
+from rich.console import Console
+from rich.table import Table
+
+from citree.utils import require_repo
 from citree.utils.schema import ZOTERO_SCHEMA
 
 
@@ -21,8 +23,9 @@ def cli(entry_id, base: Path):
         data = json.load(f)
 
     console = Console(highlight=False)
-    console.print(f"[bold cyan]ID:[/bold cyan] {entry_id}")
-    console.print(f"[bold cyan]Title:[/bold cyan] {data.get('title', '<no title>')}")
+    table = Table(show_header=False, box=None, padding=(0, 1), width=80)
+    table.add_row("[cyan]ID[/cyan]", entry_id)
+    table.add_row("[cyan]Title[/cyan]", data.get("title", "<no title>"))
 
     item_type = data.get("itemType")
     matched_schema = next((s for s in ZOTERO_SCHEMA["itemTypes"] if s["itemType"] == item_type), None)
@@ -47,9 +50,13 @@ def cli(entry_id, base: Path):
                     names.append(name)
                 else:
                     names.append(str(a))
-            console.print(f"[bold cyan]Authors:[/bold cyan] {', '.join(names)}")
-        elif key == "DOI":
-            console.print(f"[bold cyan]DOI:[/bold cyan] https://doi.org/{value}")
+            value_str = ", ".join(names)
+            label = "Authors"
+        elif key == "abstractNote" or key == "notes":
+            continue
         else:
-            label = ZOTERO_SCHEMA["locales"]["en-US"]["fields"][key]
-            console.print(f"[bold cyan]{label}:[/bold cyan] {value}")
+            label = ZOTERO_SCHEMA["locales"]["en-US"]["fields"].get(key, key)
+            value_str = str(value)
+        table.add_row(f"[cyan]{label}[/cyan]", value_str)
+
+    console.print(table)
