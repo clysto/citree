@@ -1,7 +1,10 @@
 import click
-import tomllib
+import json
+
+import rich.box
 from citree.utils import require_repo
 from pathlib import Path
+import rich
 from rich.table import Table
 from rich.console import Console
 
@@ -15,27 +18,31 @@ def cli(base: Path):
         click.echo("No entries directory found.")
         return
 
-    console = Console()
-    table = Table()
+    console = Console(highlight=False)
+    table = Table(box=rich.box.SIMPLE, width=80)
 
     table.add_column("ID", style="cyan", no_wrap=True)
     table.add_column("Title", style="white")
     table.add_column("Author", style="magenta")
-    table.add_column("Year", style="green")
+    table.add_column("Date", style="green")
 
     found = False
-    for entry_file in sorted(entries_dir.glob("*.toml")):
-        with entry_file.open("rb") as f:
+    for entry_file in sorted(entries_dir.glob("*.json")):
+        with entry_file.open("r", encoding="utf-8") as f:
             try:
-                data = tomllib.load(f)
+                data = json.load(f)
                 title = data.get("title", "<no title>")
-                author = data.get("author", [{}])[0]
-                if isinstance(author, dict):
-                    name = author.get("literal") or f"{author.get('family', '')}, {author.get('given', '')}"
+                creators = data.get("creators", [])
+                if creators:
+                    first_creator = creators[0]
+                    if "name" in first_creator:
+                        name = first_creator["name"]
+                    else:
+                        name = f"{first_creator.get('lastName', '')}, {first_creator.get('firstName', '')}".strip(", ")
                 else:
-                    name = author
-                year = str(data.get("issued", {}).get("date-parts", [[None]])[0][0] or "")
-                table.add_row(entry_file.stem, title, name, year)
+                    name = ""
+                date = data.get("date", "")
+                table.add_row(entry_file.stem, title, name, date)
                 found = True
             except Exception as e:
                 table.add_row(entry_file.stem, f"[red]Failed to parse: {e}[/red]", "", "")

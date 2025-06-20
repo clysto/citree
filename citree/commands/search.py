@@ -46,6 +46,6 @@ def cli(keyword, base: Path):
         click.echo("No readable results found.")
         return
 
-    console = Console()
+    console = Console(highlight=False)
     for path, count in sorted(match_counts.items()):
         console.print(f"[cyan]{path}[/cyan]: [green]{count}[/green] match(es)")
