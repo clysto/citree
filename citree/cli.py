@@ -1,5 +1,5 @@
 import click
-from citree.commands import init, add, attach, list
+from citree.commands import init, add, attach, list, search
 
 
 @click.group()
@@ -11,3 +11,4 @@ cli.add_command(init.cli, name="init")
 cli.add_command(add.cli, name="add")
 cli.add_command(attach.cli, name="attach")
 cli.add_command(list.cli, name="list")
+cli.add_command(search.cli, name="search")
