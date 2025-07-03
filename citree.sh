@@ -31,8 +31,8 @@ genindex() {
             local title=$(echo "$json" | jq -r '.title')
             local authors=$(echo "$json" | jq -r '[.author[] | .given + " " + .family] | join(", ")' 2>/dev/null || echo "Unknown Author")
             local issued=$(echo "$json" | jq -r '.issued["date-parts"][0] | join("-")')
-            local journal=$(echo "$json" | jq -r '."container-title"')
-            local collection=$(echo "$json" | jq -r '."collection-title"')
+            local journal=$(echo "$json" | jq -r '."container-title // empty"')
+            local collection=$(echo "$json" | jq -r '."collection-title // empty"')
             echo -e "$id\t$title\t$authors\t$issued\t$journal\t$collection"
         fi
     done >"$CITREE_REPO/.citree/index"
@@ -79,13 +79,16 @@ show() {
     fi
     echo -e "\033[36mContainer Title:\033[0m"
     echo -n "  "
-    echo "$json" | jq -r '."container-title"'
+    echo "$json" | jq -r '."container-title" // ""'
     echo -e "\033[36mCollection Title:\033[0m"
     echo -n "  "
-    echo "$json" | jq -r '."collection-title"'
+    echo "$json" | jq -r '."collection-title" // ""'
     echo -e "\033[36mIssued:\033[0m"
     echo -n "  "
     echo "$json" | jq -r '.issued."date-parts"[0] | join("-")'
+    echo -e "\033[36mURL:\033[0m"
+    echo -n "  "
+    echo "$json" | jq -r '.URL // empty'
 }
 
 # @cmd Search citation entries using fzf
@@ -108,7 +111,7 @@ find() {
     fi
 
     local selected=$(echo "$index_filtered" |
-        fzf --no-mouse --with-nth="2..-1" \
+        fzf --no-mouse --with-nth="2..-1" --preview-window wrap \
             --bind "ctrl-o:execute(citree a {1})" \
             --bind "ctrl-e:execute(citree edit {1})+abort" \
             --delimiter="\t" --preview="citree show {1}")
