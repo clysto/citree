@@ -29,7 +29,7 @@ genindex() {
             local id=$(basename "$file" .json)
             local json=$(<"$file")
             local title=$(echo "$json" | jq -r '.title')
-            local authors=$(echo "$json" | jq -r '[.author[] | .given + " " + .family] | join(", ")')
+            local authors=$(echo "$json" | jq -r '[.author[] | .given + " " + .family] | join(", ")' 2>/dev/null || echo "Unknown Author")
             local issued=$(echo "$json" | jq -r '.issued["date-parts"][0] | join("-")')
             local journal=$(echo "$json" | jq -r '."container-title"')
             local collection=$(echo "$json" | jq -r '."collection-title"')
