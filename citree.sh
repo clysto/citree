@@ -24,7 +24,7 @@ gennanoid() {
 }
 
 genindex() {
-    for file in $CITREE_REPO/entries/*.json; do
+    for file in $(ls -1t $CITREE_REPO/entries/*.json); do
         if [ -f "$file" ]; then
             local id=$(basename "$file" .json)
             local json=$(<"$file")
@@ -108,7 +108,8 @@ find() {
     fi
 
     local selected=$(echo "$index_filtered" |
-        fzf --with-nth=2 --bind "ctrl-o:execute(citree a {1})" \
+        fzf --no-mouse --with-nth=2 \
+            --bind "ctrl-o:execute(citree a {1})" \
             --bind "ctrl-e:execute(citree edit {1})+abort" \
             --delimiter="\t" --preview="citree show {1}")
     if [ -n "$selected" ]; then
@@ -129,10 +130,25 @@ attach() {
     cp "$argc_file" "$CITREE_REPO/attachments/$argc_id/$(basename "$argc_file")"
 }
 
-# @cmd Search attachments for a given keyword using rga.
-# @arg keyword!
+# @cmd Search for attachments using rga and fzf
 search() {
-    rga --files-with-matches "$argc_keyword" "$CITREE_REPO/attachments/"
+    local attachments_dir="$CITREE_REPO/attachments"
+    if [ ! -d "$attachments_dir" ]; then
+        echo "No attachments directory found"
+        exit 1
+    fi
+    local rga_cmd="rga --files-with-matches --rga-cache-max-blob-len=10M"
+
+    local preview_cmd="rga --pretty --context 5 {q} $attachments_dir/{}"
+
+    local selected=$(FZF_DEFAULT_COMMAND="$rga_cmd '' $attachments_dir | sed \"s|$attachments_dir/||\"" \
+        fzf --preview="$preview_cmd" \
+        --preview-window wrap \
+        --phony \
+        --bind "change:reload:$rga_cmd {q} $attachments_dir | sed 's|$attachments_dir/||'")
+    if [ -n "$selected" ]; then
+        open "$attachments_dir/$selected"
+    fi
 }
 
 # @cmd Add a new citation entry
