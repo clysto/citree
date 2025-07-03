@@ -73,8 +73,10 @@ show() {
     echo -e "\033[36mTitle:\033[0m"
     echo -n "  "
     echo -e "\033[1m$(echo "$json" | jq -r .title)\033[0m"
-    echo -e "\033[36mAuthors:\033[0m"
-    echo "$json" | jq -r '.author[] | select(.given != null and .family != null) | "  " + .given + " " + .family'
+    if echo "$json" | jq -e '.author? // empty' >/dev/null; then
+        echo -e "\033[36mAuthors:\033[0m"
+        echo "$json" | jq -r '.author[] | select(.given != null and .family != null) | "  " + .given + " " + .family'
+    fi
     echo -e "\033[36mContainer Title:\033[0m"
     echo -n "  "
     echo "$json" | jq -r '."container-title"'
