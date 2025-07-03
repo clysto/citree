@@ -108,7 +108,7 @@ find() {
     fi
 
     local selected=$(echo "$index_filtered" |
-        fzf --no-mouse --with-nth=2 \
+        fzf --no-mouse --with-nth="2..-1" \
             --bind "ctrl-o:execute(citree a {1})" \
             --bind "ctrl-e:execute(citree edit {1})+abort" \
             --delimiter="\t" --preview="citree show {1}")
