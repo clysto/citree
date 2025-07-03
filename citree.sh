@@ -46,7 +46,7 @@ updaterecent() {
     local recent_file="$CITREE_REPO/.citree/recent"
     {
         echo "$id"
-        grep -vxF "$id" "$recent_file"
+        grep -vxF -- "$id" "$recent_file"
     } | head -n 50 >"$recent_file.tmp"
     mv "$recent_file.tmp" "$recent_file"
 }
