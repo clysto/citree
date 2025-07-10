@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # @describe Citree - A simple command-line citation manager (Yachen Mao)
 # @meta version 0.1.0
-# @meta require-tools jq,pandoc,curl,fzf,rga,gum
+# @meta require-tools yq,pandoc,curl,fzf,rga,gum
 
 set -eu
 
@@ -24,15 +24,15 @@ gennanoid() {
 }
 
 genindex() {
-    for file in $(ls -1t $CITREE_REPO/entries/*.json); do
+    for file in $(ls -1t $CITREE_REPO/entries/*.yml); do
         if [ -f "$file" ]; then
-            local id=$(basename "$file" .json)
-            local json=$(<"$file")
-            local title=$(echo "$json" | jq -r '.title')
-            local authors=$(echo "$json" | jq -r '[.author[] | .given + " " + .family] | join(", ")' 2>/dev/null || echo "Unknown Author")
-            local issued=$(echo "$json" | jq -r '.issued["date-parts"][0] | join("-")')
-            local journal=$(echo "$json" | jq -r '."container-title // empty"')
-            local collection=$(echo "$json" | jq -r '."collection-title // empty"')
+            local id=$(basename "$file" .yml)
+            local metadata=$(<"$file")
+            local title=$(echo "$metadata" | yq -r '.title')
+            local authors=$(echo "$metadata" | yq -r '[.author[] | .given + " " + .family] | join(", ")' 2>/dev/null || echo "Unknown Author")
+            local issued=$(echo "$metadata" | yq -r '.issued["date-parts"][0] | join("-")')
+            local journal=$(echo "$metadata" | yq -r '."container-title"')
+            local collection=$(echo "$metadata" | yq -r '."collection-title"')
             echo -e "$id\t$title\t$authors\t$issued\t$journal\t$collection"
         fi
     done >"$CITREE_REPO/.citree/index"
@@ -51,6 +51,36 @@ updaterecent() {
     mv "$recent_file.tmp" "$recent_file"
 }
 
+reffmt() {
+    local id="$1"
+    local metadata=$(<"$CITREE_REPO/entries/$id.yml")
+    local refid=$(echo "$metadata" | yq -r '.id')
+    metadata=$(yq eval-all '{"references": [select(fileIndex == 0)]}' <(echo "$metadata"))
+    local md=$(printf -- "---\n%s\n---\n[@%s]\n" "$metadata" "$refid")
+    local content=$(printf -- "%s" "$md" | pandoc -f markdown --wrap=none --citeproc -t plain | tail -n +3)
+    echo "$content"
+}
+
+rename() {
+    local id="$1"
+    if [ ! -f "$CITREE_REPO/entries/$id.yml" ]; then
+        echo "error: citation entry with ID $id does not exist"
+        exit 1
+    fi
+    local metadata=$(<"$CITREE_REPO/entries/$id.yml")
+    local title=$(echo "$metadata" | yq -r '.title')
+    local issued=$(echo "$metadata" | yq -r '.issued["date-parts"][0] | join("-")')
+    local new_name="${issued}_${title}"
+    # Replace problematic characters in filename
+    new_name=$(echo "$new_name" | tr -cs '[:alnum:]-' '_')
+    if [ -d "$CITREE_REPO/attachments/$id" ]; then
+        first_pdf=$(ls -t "$CITREE_REPO/attachments/$id"/*.pdf 2>/dev/null | head -n 1)
+        if [ -n "$first_pdf" ]; then
+            mv "$first_pdf" "$CITREE_REPO/attachments/$id/$new_name.pdf"
+        fi
+    fi
+}
+
 # @cmd Initialize a new citation repository
 init() {
     mkdir -p entries attachments .citree
@@ -61,34 +91,50 @@ init() {
 
 # @cmd Show details of a citation entry by ID
 # @arg id!
+# @flag --plain Show plain text format
 show() {
-    if [ ! -f "$CITREE_REPO/entries/$argc_id.json" ]; then
+    if [ "${argc_plain:-}" ]; then
+        reffmt "$argc_id"
+        return
+    fi
+    if [ ! -f "$CITREE_REPO/entries/$argc_id.yml" ]; then
         echo "error: citation entry with ID $argc_id does not exist."
         exit 1
     fi
-    local json=$(<"$CITREE_REPO/entries/$argc_id.json")
+    local metadata=$(<"$CITREE_REPO/entries/$argc_id.yml")
     echo -e "\033[36mID:\033[0m"
     echo -n "  "
     echo -e "\033[1m$argc_id\033[0m"
     echo -e "\033[36mTitle:\033[0m"
     echo -n "  "
-    echo -e "\033[1m$(echo "$json" | jq -r .title)\033[0m"
-    if echo "$json" | jq -e '.author? // empty' >/dev/null; then
+    echo -e "\033[1m$(echo "$metadata" | yq -r .title)\033[0m"
+    if echo "$metadata" | yq -e '.author?' >/dev/null; then
         echo -e "\033[36mAuthors:\033[0m"
-        echo "$json" | jq -r '.author[] | select(.given != null and .family != null) | "  " + .given + " " + .family'
+        echo "$metadata" | yq -r '.author[] | select(.given != null and .family != null) | "  " + .given + " " + .family'
     fi
     echo -e "\033[36mContainer Title:\033[0m"
     echo -n "  "
-    echo "$json" | jq -r '."container-title" // ""'
+    echo "$metadata" | yq -r '."container-title"'
     echo -e "\033[36mCollection Title:\033[0m"
     echo -n "  "
-    echo "$json" | jq -r '."collection-title" // ""'
+    echo "$metadata" | yq -r '."collection-title"'
     echo -e "\033[36mIssued:\033[0m"
     echo -n "  "
-    echo "$json" | jq -r '.issued."date-parts"[0] | join("-")'
+    echo "$metadata" | yq -r '.issued."date-parts"[0] | join("-")'
     echo -e "\033[36mURL:\033[0m"
     echo -n "  "
-    echo "$json" | jq -r '.URL // empty'
+    echo "$metadata" | yq -r '.URL'
+    echo -e "\033[36mAttachments:\033[0m"
+    if [ -d "$CITREE_REPO/attachments/$argc_id" ]; then
+        local attachments=$(ls -1 "$CITREE_REPO/attachments/$argc_id" | sed 's/^/  /')
+        if [ -z "$attachments" ]; then
+            echo "  No attachments found"
+        else
+            echo "$attachments"
+        fi
+    else
+        echo "  No attachments found"
+    fi
 }
 
 # @cmd Search citation entries using fzf
@@ -111,10 +157,10 @@ find() {
     fi
 
     local selected=$(echo "$index_filtered" |
-        fzf --no-mouse --with-nth="2..-1" --preview-window wrap \
+        fzf --no-mouse --exact --with-nth="2..-1" --preview-window wrap \
             --bind "ctrl-o:execute(citree a {1})" \
             --bind "ctrl-e:execute(citree edit {1})+abort" \
-            --delimiter="\t" --preview="citree show {1}")
+            --delimiter="\t" --preview="citree show -- {1}")
     if [ -n "$selected" ]; then
         local id=$(echo "$selected" | awk -F '\t' '{print $1}')
         citree view "$id"
@@ -122,12 +168,17 @@ find() {
 }
 
 # @cmd Attach a file to a citation entry by ID
-# @arg file!
+# @flag --rename Rename the attachment to match the citation entry
 # @arg id!
+# @arg file
 attach() {
-    if [ ! -f "$CITREE_REPO/entries/$argc_id.json" ]; then
+    if [ ! -f "$CITREE_REPO/entries/$argc_id.yml" ]; then
         echo "error: citation entry with ID $argc_id does not exist"
         exit 1
+    fi
+    if [ "${argc_rename:-}" ]; then
+        rename "$argc_id"
+        return
     fi
     mkdir -p "$CITREE_REPO/attachments/$argc_id"
     cp "$argc_file" "$CITREE_REPO/attachments/$argc_id/$(basename "$argc_file")"
@@ -145,7 +196,7 @@ search() {
     local preview_cmd="rga --pretty --context 5 {q} $attachments_dir/{}"
 
     local selected=$(FZF_DEFAULT_COMMAND="$rga_cmd '' $attachments_dir | sed \"s|$attachments_dir/||\"" \
-        fzf --preview="$preview_cmd" \
+        fzf --exact --preview="$preview_cmd" \
         --preview-window wrap \
         --phony \
         --bind "change:reload:$rga_cmd {q} $attachments_dir | sed 's|$attachments_dir/||'")
@@ -178,7 +229,7 @@ add() {
         exit 1
     fi
     local id=$(gennanoid)
-    echo $json | jq ".[0]" | jq >"$CITREE_REPO/entries/$id.json"
+    echo $json | yq ".[0]" | yq -P >"$CITREE_REPO/entries/$id.yml"
     genindex
     updaterecent "$id"
     citree show "$id"
@@ -189,11 +240,11 @@ add() {
 # @flag --prune Remove attachments as well
 # @alias rm
 remove() {
-    if [ ! -f "$CITREE_REPO/entries/$argc_id.json" ]; then
+    if [ ! -f "$CITREE_REPO/entries/$argc_id.yml" ]; then
         echo "error: citation entry with ID $argc_id does not exist"
         exit 1
     fi
-    rm "$CITREE_REPO/entries/$argc_id.json"
+    rm "$CITREE_REPO/entries/$argc_id.yml"
     if [ "${argc_prune:-}" ]; then
         if [ -d "$CITREE_REPO/attachments/$argc_id" ]; then
             rm -rf "$CITREE_REPO/attachments/$argc_id"
@@ -207,27 +258,27 @@ remove() {
 # @arg id!
 edit() {
     editor="${EDITOR:-vim}"
-    if [ ! -f "$CITREE_REPO/entries/$argc_id.json" ]; then
+    if [ ! -f "$CITREE_REPO/entries/$argc_id.yml" ]; then
         echo "error: citation entry with ID $argc_id does not exist"
         exit 1
     fi
-    local json=$(<"$CITREE_REPO/entries/$argc_id.json")
-    echo "$json" | jq '.' >"$CITREE_REPO/entries/$argc_id.tmp.json"
-    $editor "$CITREE_REPO/entries/$argc_id.tmp.json"
+    local metadata=$(<"$CITREE_REPO/entries/$argc_id.yml")
+    echo "$metadata" | yq '.' >"$CITREE_REPO/entries/$argc_id.tmp.yml"
+    $editor "$CITREE_REPO/entries/$argc_id.tmp.yml"
     if [ $? -ne 0 ]; then
         echo "error: failed to edit citation entry"
         exit 1
     fi
     # show diff
-    local diff_output=$(diff --color=always -u "$CITREE_REPO/entries/$argc_id.json" "$CITREE_REPO/entries/$argc_id.tmp.json")
+    local diff_output=$(diff --color=always -u "$CITREE_REPO/entries/$argc_id.yml" "$CITREE_REPO/entries/$argc_id.tmp.yml")
     if [ -n "$diff_output" ]; then
         echo "$diff_output"
     else
         echo "no changes made to the citation entry"
-        rm "$CITREE_REPO/entries/$argc_id.tmp.json"
+        rm "$CITREE_REPO/entries/$argc_id.tmp.yml"
         return
     fi
-    mv "$CITREE_REPO/entries/$argc_id.tmp.json" "$CITREE_REPO/entries/$argc_id.json"
+    mv "$CITREE_REPO/entries/$argc_id.tmp.yml" "$CITREE_REPO/entries/$argc_id.json"
     genindex
     updaterecent "$argc_id"
 }
@@ -235,7 +286,7 @@ edit() {
 # @cmd Open PDF file in the default viewer
 # @arg id!
 view() {
-    if [ ! -f "$CITREE_REPO/entries/$argc_id.json" ]; then
+    if [ ! -f "$CITREE_REPO/entries/$argc_id.yml" ]; then
         echo "error: citation entry with ID $argc_id does not exist"
         exit 1
     fi
@@ -256,7 +307,7 @@ view() {
 # @arg id!
 # @alias a
 attachments() {
-    if [ ! -f "$CITREE_REPO/entries/$argc_id.json" ]; then
+    if [ ! -f "$CITREE_REPO/entries/$argc_id.yml" ]; then
         echo "error: citation entry with ID $argc_id does not exist"
         exit 1
     fi
@@ -289,7 +340,6 @@ _argc_before() {
         fi
         ;;
     esac
-
 }
 
 eval "$(argc --argc-eval "$0" "$@")"
