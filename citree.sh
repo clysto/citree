@@ -72,7 +72,7 @@ rename() {
     local issued=$(echo "$metadata" | yq -r '.issued["date-parts"][0] | join("-")')
     local new_name="${issued}_${title}"
     # Replace problematic characters in filename
-    new_name=$(echo "$new_name" | tr -cs '[:alnum:]-' '_')
+    new_name=$(echo -n "$new_name" | tr -cs '[:alnum:]-' '_')
     if [ -d "$CITREE_REPO/attachments/$id" ]; then
         first_pdf=$(ls -t "$CITREE_REPO/attachments/$id"/*.pdf 2>/dev/null | head -n 1)
         if [ -n "$first_pdf" ]; then
